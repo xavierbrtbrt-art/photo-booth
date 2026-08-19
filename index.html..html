@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Two Up — Photo Booth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --curtain: #3D0F1C;
+    --curtain-deep: #29070E;
+    --curtain-light: #6B1F30;
+    --cream: #F6ECD9;
+    --gold: #D4A24E;
+    --gold-bright: #E8C070;
+    --flash: #FFFDF7;
+    --ink: #1C0E11;
+    --rose: #C4576A;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 50% 0%, var(--curtain-light) 0%, var(--curtain) 45%, var(--curtain-deep) 100%);
+    font-family:'DM Sans', sans-serif;
+    color:var(--cream);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:32px 16px;
+    overflow-x:hidden;
+  }
+
+  /* velvet curtain stripes ambience */
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background: repeating-linear-gradient(
+      90deg,
+      rgba(0,0,0,0.16) 0px, rgba(0,0,0,0.16) 2px,
+      transparent 2px, transparent 46px
+    );
+    pointer-events:none;
+    z-index:0;
+  }
+
+  .stage{
+    position:relative;
+    z-index:1;
+    width:100%;
+    max-width:480px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+
+  .eyebrow{
+    font-size:12px;
+    letter-spacing:0.32em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin-bottom:6px;
+    text-align:center;
+  }
+
+  h1{
+    font-family:'Big Shoulders Display', sans-serif;
+    font-weight:900;
+    font-size:clamp(40px, 11vw, 64px);
+    line-height:0.9;
+    letter-spacing:0.01em;
+    margin:0 0 6px;
+    text-align:center;
+    color:var(--cream);
+    text-shadow: 0 2px 0 rgba(0,0,0,0.25);
+  }
+
+  .sub{
+    text-align:center;
+    color:rgba(246,236,217,0.7);
+    font-size:15px;
+    margin-bottom:28px;
+    max-width:340px;
+  }
+
+  /* booth frame */
+  .booth{
+    position:relative;
+    width:100%;
+    background: linear-gradient(180deg, var(--curtain-light), var(--curtain));
+    border-radius:18px;
+    padding:14px;
+    box-shadow:
+      0 0 0 1px rgba(212,162,78,0.35),
+      0 20px 50px rgba(0,0,0,0.45),
+      inset 0 0 40px rgba(0,0,0,0.35);
+  }
+
+  .booth-marquee{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:0 4px 10px;
+    font-family:'Big Shoulders Display', sans-serif;
+    font-weight:700;
+    letter-spacing:0.08em;
+    font-size:13px;
+    color:var(--gold-bright);
+    text-transform:uppercase;
+  }
+  .dot{ width:6px; height:6px; border-radius:50%; background:var(--gold); display:inline-block; margin:0 2px; }
+
+  .screen{
+    position:relative;
+    width:100%;
+    aspect-ratio: 4/3;
+    background:var(--ink);
+    border-radius:10px;
+    overflow:hidden;
+    border:3px solid rgba(212,162,78,0.55);
+  }
+
+  video, canvas.frame-preview{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    object-fit:cover;
+    transform:scaleX(-1);
+  }
+
+  .flash-layer{
+    position:absolute; inset:0;
+    background:var(--flash);
+    opacity:0;
+    pointer-events:none;
+  }
+  .flash-layer.pop{
+    animation: flashpop 320ms ease-out;
+  }
+  @keyframes flashpop{
+    0%{ opacity:0.95; }
+    100%{ opacity:0; }
+  }
+
+  .countdown{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Big Shoulders Display', sans-serif;
+    font-weight:900;
+    font-size:clamp(72px, 22vw, 120px);
+    color:var(--flash);
+    text-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    opacity:0;
+    pointer-events:none;
+  }
+  .countdown.show{ animation: pulse 1s ease-out; opacity:1; }
+  @keyframes pulse{
+    0%{ transform:scale(0.6); opacity:0; }
+    30%{ transform:scale(1.08); opacity:1; }
+    100%{ transform:scale(1); opacity:0.85; }
+  }
+
+  .shot-counter{
+    position:absolute;
+    top:10px; right:10px;
+    background:rgba(28,14,17,0.6);
+    border:1px solid var(--gold);
+    color:var(--gold-bright);
+    font-family:'Big Shoulders Display', sans-serif;
+    font-weight:700;
+    letter-spacing:0.06em;
+    font-size:12px;
+    padding:4px 10px;
+    border-radius:999px;
+  }
+
+  .idle-overlay{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap:14px;
+    background:rgba(28,14,17,0.55);
+    text-align:center;
+    padding:20px;
+  }
+  .idle-overlay p{ margin:0; font-size:13px; color:rgba(246,236,217,0.8); max-width:260px; }
+
+  .controls{
+    display:flex;
+    gap:10px;
+    justify-content:center;
+    align-items:center;
+    margin-top:14px;
+    flex-wrap:wrap;
+  }
+
+  button{
+    font-family:'Big Shoulders Display', sans-serif;
+    font-weight:700;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    font-size:14px;
+    padding:12px 22px;
+    border-radius:999px;
+    border:none;
+    cursor:pointer;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  button:focus-visible{ outline:3px solid var(--gold-bright); outline-offset:2px; }
+  button:active{ transform:scale(0.96); }
+  button:disabled{ opacity:0.45; cursor:not-allowed; }
+
+  .btn-primary{
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+    color: var(--ink);
+    box-shadow: 0 6px 16px rgba(212,162,78,0.35);
+  }
+  .btn-primary:not(:disabled):hover{ transform:translateY(-1px); }
+
+  .btn-ghost{
+    background:transparent;
+    color:var(--cream);
+    border:1.5px solid rgba(246,236,217,0.4);
+  }
+  .btn-ghost:not(:disabled):hover{ border-color:var(--gold-bright); color:var(--gold-bright); }
+
+  .filters{
+    display:flex;
+    gap:8px;
+    justify-content:center;
+    margin-top:12px;
+  }
+  .filter-chip{
+    font-family:'DM Sans', sans-serif;
+    font-size:12px;
+    font-weight:500;
+    padding:7px 14px;
+    border-radius:999px;
+    border:1px solid rgba(246,236,217,0.35);
+    background:transparent;
+    color:rgba(246,236,217,0.75);
+    text-transform:none;
+    letter-spacing:0;
+  }
+  .filter-chip.active{
+    background:var(--gold);
+    color:var(--ink);
+    border-color:var(--gold);
+  }
+
+  /* film strip */
+  .strip-wrap{
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    margin-top:22px;
+  }
+  .strip-wrap.show{ display:flex; }
+
+  .filmstrip{
+    background:var(--ink);
+    padding:14px 10px;
+    border-radius:8px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    position:relative;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+  }
+  .filmstrip::before, .filmstrip::after{
+    content:"";
+    position:absolute;
+    left:0; right:0;
+    height:12px;
+    background: repeating-linear-gradient(90deg, var(--gold) 0 6px, transparent 6px 16px);
+    opacity:0.55;
+  }
+  .filmstrip::before{ top:0; }
+  .filmstrip::after{ bottom:0; }
+
+  .filmstrip img{
+    width:220px;
+    display:block;
+    border-radius:2px;
+  }
+
+  .strip-caption{
+    font-family:'Big Shoulders Display', sans-serif;
+    font-weight:700;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    font-size:11px;
+    color:var(--gold-bright);
+    text-align:center;
+    margin-top:8px;
+  }
+
+  .hint{
+    font-size:12px;
+    color:rgba(246,236,217,0.55);
+    text-align:center;
+    margin-top:18px;
+    max-width:340px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .countdown.show, .flash-layer.pop{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="eyebrow">Two Up</div>
+  <h1>Photo Booth</h1>
+  <p class="sub">Squeeze in. We'll take four, one after another, just like the real thing.</p>
+
+  <div class="booth">
+    <div class="booth-marquee">
+      <span>Now Showing</span>
+      <span><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+    </div>
+
+    <div class="screen" id="screen">
+      <video id="video" autoplay playsinline muted></video>
+      <div class="flash-layer" id="flashLayer"></div>
+      <div class="countdown" id="countdown"></div>
+      <div class="shot-counter" id="shotCounter" style="display:none;">0 / 4</div>
+
+      <div class="idle-overlay" id="idleOverlay">
+        <p>Turn on the camera to step inside the booth.</p>
+        <button class="btn-primary" id="startBtn">Open the booth</button>
+      </div>
+    </div>
+
+    <div class="filters" id="filters" style="display:none;">
+      <button class="filter-chip active" data-filter="none">Color</button>
+      <button class="filter-chip" data-filter="grayscale(1) contrast(1.1)">B&amp;W</button>
+      <button class="filter-chip" data-filter="sepia(0.65) contrast(1.05)">Sepia</button>
+    </div>
+
+    <div class="controls" id="mainControls" style="display:none;">
+      <button class="btn-primary" id="captureBtn">Start the strip</button>
+      <button class="btn-ghost" id="retakeBtn" style="display:none;">Retake</button>
+    </div>
+  </div>
+
+  <div class="strip-wrap" id="stripWrap">
+    <div class="filmstrip" id="filmstrip"></div>
+    <div class="strip-caption">Your strip is ready</div>
+    <div class="controls">
+      <button class="btn-primary" id="downloadBtn">Download strip</button>
+      <button class="btn-ghost" id="retakeBtn2">Take another</button>
+    </div>
+  </div>
+
+  <p class="hint">Everything happens in your browser — nothing is uploaded anywhere. Works best when both of you can see the screen.</p>
+</div>
+
+<script>
+(function(){
+  const video = document.getElementById('video');
+  const startBtn = document.getElementById('startBtn');
+  const idleOverlay = document.getElementById('idleOverlay');
+  const captureBtn = document.getElementById('captureBtn');
+  const retakeBtn = document.getElementById('retakeBtn');
+  const retakeBtn2 = document.getElementById('retakeBtn2');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const countdownEl = document.getElementById('countdown');
+  const flashLayer = document.getElementById('flashLayer');
+  const shotCounter = document.getElementById('shotCounter');
+  const mainControls = document.getElementById('mainControls');
+  const filtersEl = document.getElementById('filters');
+  const stripWrap = document.getElementById('stripWrap');
+  const filmstrip = document.getElementById('filmstrip');
+
+  const SHOTS = 4;
+  let currentFilter = 'none';
+  let stream = null;
+  let shots = [];
+  let busy = false;
+
+  filtersEl.addEventListener('click', (e) => {
+    const chip = e.target.closest('.filter-chip');
+    if(!chip) return;
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentFilter = chip.dataset.filter;
+    video.style.filter = currentFilter === 'none' ? '' : currentFilter;
+  });
+
+  async function openBooth(){
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio:false });
+      video.srcObject = stream;
+      idleOverlay.style.display = 'none';
+      filtersEl.style.display = 'flex';
+      mainControls.style.display = 'flex';
+      shotCounter.style.display = 'block';
+      shotCounter.textContent = '0 / ' + SHOTS;
+    }catch(err){
+      idleOverlay.innerHTML = '<p>Couldn\'t reach your camera. Check that this page has camera permission, and that you\'re on https:// (or localhost), then reload.</p>';
+    }
+  }
+
+  startBtn.addEventListener('click', openBooth);
+
+  function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+  async function runCountdown(){
+    for(const n of ['3','2','1']){
+      countdownEl.textContent = n;
+      countdownEl.classList.remove('show');
+      void countdownEl.offsetWidth;
+      countdownEl.classList.add('show');
+      await wait(700);
+    }
+    countdownEl.classList.remove('show');
+  }
+
+  function snap(){
+    const canvas = document.createElement('canvas');
+    const w = video.videoWidth || 640;
+    const h = video.videoHeight || 480;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.filter = currentFilter === 'none' ? 'none' : currentFilter;
+    // mirror to match the preview
+    ctx.translate(w, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, w, h);
+    return canvas.toDataURL('image/jpeg', 0.92);
+  }
+
+  function flash(){
+    flashLayer.classList.remove('pop');
+    void flashLayer.offsetWidth;
+    flashLayer.classList.add('pop');
+  }
+
+  async function runSequence(){
+    if(busy) return;
+    busy = true;
+    shots = [];
+    captureBtn.disabled = true;
+    retakeBtn.style.display = 'none';
+    stripWrap.classList.remove('show');
+
+    for(let i = 0; i < SHOTS; i++){
+      await runCountdown();
+      flash();
+      await wait(120);
+      shots.push(snap());
+      shotCounter.textContent = (i+1) + ' / ' + SHOTS;
+      await wait(500);
+    }
+
+    buildStrip();
+    busy = false;
+    captureBtn.disabled = false;
+    captureBtn.textContent = 'Retake the strip';
+    retakeBtn.style.display = 'inline-block';
+  }
+
+  function buildStrip(){
+    filmstrip.innerHTML = '';
+    shots.forEach(src => {
+      const img = document.createElement('img');
+      img.src = src;
+      filmstrip.appendChild(img);
+    });
+    stripWrap.classList.add('show');
+    stripWrap.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }
+
+  function resetBooth(){
+    shots = [];
+    stripWrap.classList.remove('show');
+    captureBtn.textContent = 'Start the strip';
+    shotCounter.textContent = '0 / ' + SHOTS;
+    retakeBtn.style.display = 'none';
+  }
+
+  captureBtn.addEventListener('click', runSequence);
+  retakeBtn.addEventListener('click', resetBooth);
+  retakeBtn2.addEventListener('click', () => { resetBooth(); window.scrollTo({top:0, behavior:'smooth'}); });
+
+  downloadBtn.addEventListener('click', () => {
+    if(shots.length === 0) return;
+    const imgW = 480;
+    const gap = 18;
+    const pad = 22;
+    const captionH = 60;
+    const imgH = Math.round(imgW * 0.75);
+    const canvas = document.createElement('canvas');
+    canvas.width = imgW + pad*2;
+    canvas.height = pad*2 + shots.length*imgH + (shots.length-1)*gap + captionH;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#1C0E11';
+    ctx.fillRect(0,0,canvas.width, canvas.height);
+
+    let loaded = 0;
+    shots.forEach((src, i) => {
+      const im = new Image();
+      im.onload = () => {
+        const y = pad + i*(imgH+gap);
+        ctx.drawImage(im, pad, y, imgW, imgH);
+        loaded++;
+        if(loaded === shots.length){
+          ctx.fillStyle = '#D4A24E';
+          ctx.font = '700 22px Georgia, serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('TWO UP · PHOTO BOOTH', canvas.width/2, canvas.height - 22);
+
+          const link = document.createElement('a');
+          link.download = 'photo-booth-strip.jpg';
+          link.href = canvas.toDataURL('image/jpeg', 0.95);
+          link.click();
+        }
+      };
+      im.src = src;
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
